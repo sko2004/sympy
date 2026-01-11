@@ -4176,7 +4176,7 @@ class Poly(Basic):
         G = name if by_name else name.get_perm_group()
         return G, alt
 
-    def hurwitz_conditions(f):
+    def hurwitz_conditions(f, **args):
         """
         Compute the conditions that ensure ``f`` is a Hurwitz polynomial of
         full degree.
@@ -4207,6 +4207,10 @@ class Poly(Basic):
         >>> reduce_inequalities([c > 0 for c in conditions])
         (1/3 < k) & (k < 1)
 
+        * short_circuit : bool, optional
+            If True, the computation stops as soon as a non-positive condition
+            is encountered. Default is False.
+
         References
         ==========
 
@@ -4216,10 +4220,10 @@ class Poly(Basic):
 
 
         """
-        conds = f.rep.hurwitz_conditions()
+        conds = f.rep.hurwitz_conditions(**args)
         return [f.domain.to_sympy(cond) for cond in conds]
 
-    def schur_conditions(f):
+    def schur_conditions(f, **args):
         """
         Compute the conditions that ensure ``f`` is a Schur stable polynomial.
 
@@ -4249,13 +4253,17 @@ class Poly(Basic):
         >>> reduce_inequalities([c > 0 for c in conditions])
         (1/3 < k) & (k < -1/2 + sqrt(5)/2)
 
+        * short_circuit : bool, optional
+            If True, the computation stops as soon as a non-positive condition
+            is encountered. Default is False.
+
         References
         ==========
 
         .. [1] https://faculty.washington.edu/chx/teaching/me547/2_1_stability.pdf#:~:text=2.6%20Routh,plane%20Real
 
         """
-        conds = f.rep.schur_conditions()
+        conds = f.rep.schur_conditions(**args)
         return [f.domain.to_sympy(cond) for cond in conds]
 
     @property
@@ -7882,14 +7890,15 @@ def hurwitz_conditions(f, *gens, **args):
     See :func:`~.Poly.hurwitz_conditions`.
 
     """
-    options.allowed_flags(args, ['polys'])
+    options.allowed_flags(args, ['polys', 'short_circuit'])
+    short_circuit = args.pop('short_circuit', False)
 
     try:
         F, opt = poly_from_expr(f, *gens, **args)
     except PolificationFailed as exc:
         raise ComputationFailed('hurwitz_conditions', 1, exc)
 
-    return F.hurwitz_conditions()
+    return F.hurwitz_conditions(short_circuit=short_circuit, **args)
 
 
 @public
@@ -7898,14 +7907,15 @@ def schur_conditions(f, *gens, **args):
     See :func:`~.Poly.schur_conditions`.
 
     """
-    options.allowed_flags(args, ['polys'])
+    options.allowed_flags(args, ['polys', 'short_circuit'])
+    short_circuit = args.pop('short_circuit', False)
 
     try:
         F, opt = poly_from_expr(f, *gens, **args)
     except PolificationFailed as exc:
         raise ComputationFailed('schur_conditions', 1, exc)
 
-    return F.schur_conditions()
+    return F.schur_conditions(short_circuit=short_circuit, **args)
 
 
 @public

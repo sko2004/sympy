@@ -708,6 +708,16 @@ class Series(BooleanOption, Flag, metaclass=OptionType):
         return False
 
 
+class ShortCircuit(BooleanOption, Flag, metaclass=OptionType):
+    """``short_circuit`` flag to polynomial manipulation functions. """
+
+    option = 'short_circuit'
+
+    @classmethod
+    def default(cls):
+        return False
+
+
 class Symbols(Flag, metaclass=OptionType):
     """``symbols`` flag to polynomial manipulation functions. """
 

@@ -14,7 +14,7 @@ from sympy.simplify.simplify import signsimp
 from sympy.core.mul import Mul
 
 
-def dup_routh_hurwitz(f: dup[Er], K: Domain[Er]) -> list[Er]:
+def dup_routh_hurwitz(f: dup[Er], K: Domain[Er], short_circuit: bool = False) -> list[Er]:
     """
     Computes the Routh Hurwitz criteria of ``f``.
 
@@ -44,45 +44,64 @@ def dup_routh_hurwitz(f: dup[Er], K: Domain[Er]) -> list[Er]:
     if K.is_RR:
         pq = dup_convert(f, K, QQ)
         _, pz = dup_clear_denoms(pq, QQ, convert=True)
-        conds: list = _dup_routh_hurwitz_fraction_free(pz, ZZ)
+        conds: list = _dup_routh_hurwitz_fraction_free(pz, ZZ, short_circuit=short_circuit)
         return [K.convert_from(c, ZZ) for c in conds]
 
     if K.is_QQ:
         _, pz = dup_clear_denoms(f, K, convert=True)
-        conds = _dup_routh_hurwitz_fraction_free(pz, ZZ)
+        conds = _dup_routh_hurwitz_fraction_free(pz, ZZ, short_circuit=short_circuit)
         return [K.convert_from(c, ZZ) for c in conds]
 
     elif K.is_ZZ:
-        return _dup_routh_hurwitz_fraction_free(f, K)
+        return _dup_routh_hurwitz_fraction_free(f, K, short_circuit=short_circuit)
 
     elif K.is_PolynomialRing:
-        return _dup_routh_hurwitz_fraction_free(f, K)
+        return _dup_routh_hurwitz_fraction_free(f, K, short_circuit=short_circuit)
 
     elif K.is_FractionField:
         _, pp = dup_clear_denoms(f, K, convert=True)
-        conds = _dup_routh_hurwitz_fraction_free(pp, K)
+        conds = _dup_routh_hurwitz_fraction_free(pp, K, short_circuit=short_circuit)
         R = K.get_ring()
         return [K.convert_from(c, R) for c in conds]
 
     else:
         pe = dup_convert(f, K, EXRAW)
-        conds = _dup_routh_hurwitz_exraw(pe)
+        conds = _dup_routh_hurwitz_exraw(pe, short_circuit=short_circuit)
         return [K.convert_from(c, EXRAW) for c in conds]
 
 
-def _dup_routh_hurwitz_fraction_free(p: dup[Er], K: Domain[Er]) -> list[Er]:
+def _dup_routh_hurwitz_fraction_free(p: dup[Er], K: Domain[Er], short_circuit: bool = False) -> list[Er]:
     if len(p) == 1:
         return []
-    elif len(p) == 2:
-        return [p[0] * p[1]]
+
+    LC = p[0]
+
+    if len(p) == 2:
+        conds = [LC * p[1]]
+        if short_circuit and K.to_sympy(conds[0]).is_nonpositive:
+            return [conds[0]]
+        return conds
     elif len(p) == 3:
-        return [p[0] * p[1], p[0] * p[2]]
+        conds = [LC * p[1], LC * p[2]]
+        if short_circuit:
+            if K.to_sympy(conds[0]).is_nonpositive:
+                return [conds[0]]
+            if K.to_sympy(conds[1]).is_nonpositive:
+                return conds
+        return conds
 
     LC = p[0]
     TC = p[-1]
     monic = K.is_one(LC)
 
     p1s = [p[1]]
+
+    if short_circuit:
+        cond = p1s[0]
+        if not monic:
+            cond *= LC
+        if K.to_sympy(cond).is_nonpositive:
+            return [cond]
 
     while len(p) > 3:
         qs = [p[1] * qi for qi in p[1:]]
@@ -104,23 +123,34 @@ def _dup_routh_hurwitz_fraction_free(p: dup[Er], K: Domain[Er]) -> list[Er]:
 
         p1s.append(p1)
 
+        if short_circuit:
+            # Check the condition as it would be returned (multiplied by LC if needed)
+            cond = p1
+            if not monic and (len(p1s) - 1) % 2 == 0:
+                cond *= LC
+            if K.to_sympy(cond).is_nonpositive:
+                return [p1s[i] * LC if not monic and i % 2 == 0 else p1s[i] for i in range(len(p1s))]
+
     if not monic:
         for i in range(0, len(p1s), 2):
             p1s[i] *= LC
 
-    p1s.append(LC * TC)
+    cond = LC * TC
+    p1s.append(cond)
+    if short_circuit and K.to_sympy(cond).is_nonpositive:
+        return p1s
 
     return p1s
 
 
-def _dup_routh_hurwitz_exraw(p: list[Expr]) -> list[Expr]:
+def _dup_routh_hurwitz_exraw(p: list[Expr], short_circuit: bool = False) -> list[Expr]:
     if all(c.is_Number for c in p):
-        return _dup_routh_hurwitz_exraw_div(p)
+        return _dup_routh_hurwitz_exraw_div(p, short_circuit=short_circuit)
 
-    return _dup_routh_hurwitz_exraw_no_div(p)
+    return _dup_routh_hurwitz_exraw_no_div(p, short_circuit=short_circuit)
 
 
-def _dup_routh_hurwitz_exraw_div(p: list[Expr]) -> list[Expr]:
+def _dup_routh_hurwitz_exraw_div(p: list[Expr], short_circuit: bool = False) -> list[Expr]:
     """
     Stability check with divisions, used for numeric cases.
 
@@ -128,7 +158,8 @@ def _dup_routh_hurwitz_exraw_div(p: list[Expr]) -> list[Expr]:
     if len(p) < 2:
         return []
 
-    if (p[0] * p[1]).is_nonpositive:
+    cond = p[0] * p[1]
+    if short_circuit and cond.is_nonpositive:
         return [-EXRAW.one]
 
     qs = p.copy()
@@ -136,22 +167,23 @@ def _dup_routh_hurwitz_exraw_div(p: list[Expr]) -> list[Expr]:
         qs[i - 1] -= p[i] * p[0] / p[1]
     qs = qs[1:]
 
-    return [p[0] * p[1]] + _dup_routh_hurwitz_exraw_div(qs)
+    return [cond] + _dup_routh_hurwitz_exraw_div(qs, short_circuit=short_circuit)
 
 
-def _dup_routh_hurwitz_exraw_no_div(p: list[Expr]) -> list[Expr]:
+def _dup_routh_hurwitz_exraw_no_div(p: list[Expr], short_circuit: bool = False) -> list[Expr]:
     """
     Stability check without divisions, used for EXRAW.
 
     """
 
-    return _rec_dup_routh_hurwitz_exraw_no_div(p, [], set())
+    return _rec_dup_routh_hurwitz_exraw_no_div(p, [], set(), short_circuit=short_circuit)
 
 
 def _rec_dup_routh_hurwitz_exraw_no_div(
     p: list[Expr],
     previous_cond: list[tuple[int, set[Expr]]],
     nonzeros: set[Expr],
+    short_circuit: bool = False,
 ) -> list[Expr]:
     if len(p) < 2:
         return [z**2 for z in nonzeros]
@@ -164,8 +196,11 @@ def _rec_dup_routh_hurwitz_exraw_no_div(
     cond, previous_cond, nonzeros = _clear_cond_exraw(
         p[0] * p[1], previous_cond, nonzeros
     )
+    if short_circuit and cond.is_nonpositive:
+        return [cond]
+
     return [cond] + _rec_dup_routh_hurwitz_exraw_no_div(
-        qs, previous_cond, nonzeros
+        qs, previous_cond, nonzeros, short_circuit=short_circuit
     )
 
 
@@ -245,7 +280,7 @@ def _build_simplified_factors(
     return (sign, factors), nonzeros
 
 
-def dup_schur_conditions(f: dup[Er], K: Domain[Er]) -> list[Er]:
+def dup_schur_conditions(f: dup[Er], K: Domain[Er], short_circuit: bool = False) -> list[Er]:
     """
     Computes the schur stability conditions of ``f``.
 
@@ -272,16 +307,16 @@ def dup_schur_conditions(f: dup[Er], K: Domain[Er]) -> list[Er]:
         )
 
     if K.is_Exact:
-        return _dup_schur_conditions(f, K)
+        return _dup_schur_conditions(f, K, short_circuit=short_circuit)
     else:
         K_exact = K.get_exact()
         pe = dup_convert(f, K, K_exact)
 
-        conds = _dup_schur_conditions(pe, K_exact)
+        conds = _dup_schur_conditions(pe, K_exact, short_circuit=short_circuit)
         return [K.convert_from(c, K_exact) for c in conds]
 
 
-def _dup_schur_conditions(f: dup[Er], K: Domain[Er]) -> list[Er]:
+def _dup_schur_conditions(f: dup[Er], K: Domain[Er], short_circuit: bool = False) -> list[Er]:
     """
     Computes the Schur stability conditions, mapping the unit circle to the left
     half plane, transforming the problem into a Routh-Hurwitz stability problem.
@@ -295,4 +330,4 @@ def _dup_schur_conditions(f: dup[Er], K: Domain[Er]) -> list[Er]:
         return [-K.one]
 
     f_t = dup_transform(f, [K.one, K.one], [-K.one, K.one], K)
-    return dup_routh_hurwitz(f_t, K)
+    return dup_routh_hurwitz(f_t, K, short_circuit=short_circuit)

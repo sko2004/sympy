@@ -1160,11 +1160,11 @@ class DMP(CantSympify, Generic[Er]):
         """Return the number of complex roots of ``f`` in ``[inf, sup]``. """
         raise NotImplementedError
 
-    def hurwitz_conditions(f) -> list[Er]:
+    def hurwitz_conditions(f, **args) -> list[Er]:
         """Computes the Routh Hurwitz criteria of ``f``. """
         raise NotImplementedError
 
-    def schur_conditions(f) -> list[Er]:
+    def schur_conditions(f, **args) -> list[Er]:
         """Computes the Schur conditions of ``f``. """
         raise NotImplementedError
 
@@ -1834,19 +1834,19 @@ class DMP_Python(DMP[Er]):
         """Return the number of complex roots of ``f`` in ``[inf, sup]``. """
         return dup_count_complex_roots(f._rep, f.dom, inf=inf, sup=sup)
 
-    def hurwitz_conditions(f) -> list[Er]:
+    def hurwitz_conditions(f, **args) -> list[Er]:
         """Computes the Routh Hurwitz criteria of ``f``. """
         from sympy.polys.rootconditions import dup_routh_hurwitz
         if f.lev:
             raise ValueError("Routh-Hurwitz stability is only defined for univariate polynomials.")
-        return dup_routh_hurwitz(f._rep, f.dom)
+        return dup_routh_hurwitz(f._rep, f.dom, **args)
 
-    def schur_conditions(f) -> list[Er]:
+    def schur_conditions(f, **args) -> list[Er]:
         """Computes the Schur conditions of ``f``. """
         from sympy.polys.rootconditions import dup_schur_conditions
         if f.lev:
             raise ValueError("Schur stability is only defined for univariate polynomials.")
-        return dup_schur_conditions(f._rep, f.dom)
+        return dup_schur_conditions(f._rep, f.dom, **args)
 
     @property
     def is_zero(f) -> bool:
@@ -2552,13 +2552,13 @@ class DUP_Flint(DMP[Er]):
         """Return the number of complex roots of ``f`` in ``[inf, sup]``. """
         return f.to_DMP_Python().count_complex_roots(inf=inf, sup=sup)
 
-    def hurwitz_conditions(f) -> list[Er]:
+    def hurwitz_conditions(f, **args) -> list[Er]:
         """Computes the Routh Hurwitz criteria of ``f``. """
-        return f.to_DMP_Python().hurwitz_conditions()
+        return f.to_DMP_Python().hurwitz_conditions(**args)
 
-    def schur_conditions(f) -> list[Er]:
+    def schur_conditions(f, **args) -> list[Er]:
         """Computes the Schur conditions of ``f``. """
-        return f.to_DMP_Python().schur_conditions()
+        return f.to_DMP_Python().schur_conditions(**args)
 
     @property
     def is_zero(f) -> bool:
